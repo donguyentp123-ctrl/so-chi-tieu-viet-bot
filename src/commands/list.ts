@@ -1,26 +1,23 @@
 import { Telegraf, Markup } from "telegraf";
-import { prisma } from "../database/prisma";
+import { getTransactions, countTransactions } from "../repositories/transaction.repository";
 import { formatMoney } from "../utils/money";
 
 const PAGE_SIZE = 5;
 
 async function sendTransactionList(ctx: any, page: number) {
   const userId = String(ctx.from.id);
-  const skip = (page - 1) * PAGE_SIZE;
 
-  const total = await prisma.transaction.count({
-    where: { userId },
-  });
-
+  const total = await countTransactions({ userId });
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   if (page < 1) page = 1;
   if (page > totalPages) page = totalPages;
 
-  const records = await prisma.transaction.findMany({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
-    skip: (page - 1) * PAGE_SIZE,
+  const skip = (page - 1) * PAGE_SIZE;
+
+  const records = await getTransactions({
+    userId,
+    skip,
     take: PAGE_SIZE,
   });
 
@@ -36,9 +33,7 @@ async function sendTransactionList(ctx: any, page: number) {
       const note = record.note || "Không có";
       const shortNote = note.length > 20 ? note.slice(0, 20) + "..." : note;
 
-      return `${number}. ${typeIcon} ${formatMoney(record.amount)} | ${
-        record.category
-      } | ${shortNote}`;
+      return `${number}. ${typeIcon} ${formatMoney(record.amount)} | ${record.category} | ${shortNote}`;
     })
     .join("\n");
 
@@ -56,9 +51,7 @@ async function sendTransactionList(ctx: any, page: number) {
     pageButtons.push(Markup.button.callback("Trang sau ➡️", `tx_page:${page + 1}`));
   }
 
-  const keyboardRows = [];
-
-  keyboardRows.push(transactionButtons);
+  const keyboardRows = [transactionButtons];
 
   if (pageButtons.length > 0) {
     keyboardRows.push(pageButtons);
@@ -92,12 +85,13 @@ export function registerListCommand(bot: Telegraf) {
     const id = ctx.match[1];
     const userId = String(ctx.from.id);
 
-    const record = await prisma.transaction.findFirst({
-      where: {
-        id,
-        userId,
-      },
+    const records = await getTransactions({
+      userId,
+      where: { id },
+      take: 1,
     });
+
+    const record = records[0];
 
     if (!record) {
       await ctx.answerCbQuery("Không tìm thấy giao dịch.");

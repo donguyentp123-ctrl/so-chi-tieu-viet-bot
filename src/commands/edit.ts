@@ -1,6 +1,5 @@
 import { TransactionType } from "@prisma/client";
 import { Telegraf, Markup } from "telegraf";
-import { prisma } from "../database/prisma";
 import {
   cancelKeyboard,
   mainKeyboard,
@@ -9,6 +8,13 @@ import {
   expenseCategoryKeyboard,
   incomeCategoryKeyboard,
 } from "../keyboards/category.keyboard";
+import {
+  getTransactionById,
+  getTransactionByShortId,
+  updateTransactionAmount,
+  updateTransactionCategory,
+  updateTransactionNote,
+} from "../services/transaction.service";
 import { formatMoney, parseAmount } from "../utils/money";
 import { isMainMenuText } from "../utils/menu";
 
@@ -22,20 +28,6 @@ type PendingEdit = {
 
 const waitingForEditId = new Set<number>();
 const waitingForEditInput = new Map<number, PendingEdit>();
-
-function editMenuKeyboard(transactionId: string) {
-  return Markup.inlineKeyboard([
-    [
-      Markup.button.callback("💰 Sửa số tiền", `edit_amount:${transactionId}`),
-      Markup.button.callback(
-        "🏷 Sửa danh mục",
-        `edit_category:${transactionId}`
-      ),
-    ],
-    [Markup.button.callback("📝 Sửa ghi chú", `edit_note:${transactionId}`)],
-    [Markup.button.callback("❌ Hủy", "edit_cancel")],
-  ]);
-}
 
 const expenseCategoryMap: Record<string, string> = {
   "🍜 Ăn uống": "Ăn uống",
@@ -56,15 +48,23 @@ const incomeCategoryMap: Record<string, string> = {
   "📦 Khác": "Khác",
 };
 
+function editMenuKeyboard(transactionId: string) {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback("💰 Sửa số tiền", `edit_amount:${transactionId}`),
+      Markup.button.callback(
+        "🏷 Sửa danh mục",
+        `edit_category:${transactionId}`
+      ),
+    ],
+    [Markup.button.callback("📝 Sửa ghi chú", `edit_note:${transactionId}`)],
+    [Markup.button.callback("❌ Hủy", "edit_cancel")],
+  ]);
+}
+
 async function showEditMenu(ctx: any, transactionId: string) {
   const userId = String(ctx.from.id);
-
-  const record = await prisma.transaction.findFirst({
-    where: {
-      id: transactionId,
-      userId,
-    },
-  });
+  const record = await getTransactionById(userId, transactionId);
 
   if (!record) {
     await ctx.reply("Không tìm thấy giao dịch.");
@@ -103,14 +103,7 @@ Bạn có thể bấm 📋 Danh sách để chọn giao dịch nhanh hơn.`,
     const shortId = ctx.match[1];
     const userId = String(ctx.from.id);
 
-    const record = await prisma.transaction.findFirst({
-      where: {
-        userId,
-        id: {
-          startsWith: shortId,
-        },
-      },
-    });
+    const record = await getTransactionByShortId(userId, shortId);
 
     if (!record) {
       await ctx.answerCbQuery("Không tìm thấy giao dịch.");
@@ -123,13 +116,7 @@ Bạn có thể bấm 📋 Danh sách để chọn giao dịch nhanh hơn.`,
 
   bot.action(/^edit_amount:(.+)/, async (ctx) => {
     const transactionId = ctx.match[1];
-
-    const record = await prisma.transaction.findFirst({
-      where: {
-        id: transactionId,
-        userId: String(ctx.from.id),
-      },
-    });
+    const record = await getTransactionById(String(ctx.from.id), transactionId);
 
     if (!record) {
       await ctx.answerCbQuery("Không tìm thấy giao dịch.");
@@ -151,13 +138,7 @@ Bạn có thể bấm 📋 Danh sách để chọn giao dịch nhanh hơn.`,
 
   bot.action(/^edit_note:(.+)/, async (ctx) => {
     const transactionId = ctx.match[1];
-
-    const record = await prisma.transaction.findFirst({
-      where: {
-        id: transactionId,
-        userId: String(ctx.from.id),
-      },
-    });
+    const record = await getTransactionById(String(ctx.from.id), transactionId);
 
     if (!record) {
       await ctx.answerCbQuery("Không tìm thấy giao dịch.");
@@ -176,13 +157,7 @@ Bạn có thể bấm 📋 Danh sách để chọn giao dịch nhanh hơn.`,
 
   bot.action(/^edit_category:(.+)/, async (ctx) => {
     const transactionId = ctx.match[1];
-
-    const record = await prisma.transaction.findFirst({
-      where: {
-        id: transactionId,
-        userId: String(ctx.from.id),
-      },
-    });
+    const record = await getTransactionById(String(ctx.from.id), transactionId);
 
     if (!record) {
       await ctx.answerCbQuery("Không tìm thấy giao dịch.");
@@ -248,14 +223,10 @@ Bạn có thể bấm 📋 Danh sách để chọn giao dịch nhanh hơn.`,
           return;
         }
 
-        const updated = await prisma.transaction.update({
-          where: {
-            id: pending.transactionId,
-          },
-          data: {
-            amount,
-          },
-        });
+        const updated = await updateTransactionAmount(
+          pending.transactionId,
+          amount
+        );
 
         waitingForEditInput.delete(telegramUserId);
 
@@ -271,14 +242,10 @@ Số tiền mới: ${formatMoney(updated.amount)}`,
       }
 
       if (pending.field === "note") {
-        const updated = await prisma.transaction.update({
-          where: {
-            id: pending.transactionId,
-          },
-          data: {
-            note: text,
-          },
-        });
+        const updated = await updateTransactionNote(
+          pending.transactionId,
+          text
+        );
 
         waitingForEditInput.delete(telegramUserId);
 
@@ -304,14 +271,10 @@ Ghi chú mới: ${updated.note || "Không có"}`,
           return;
         }
 
-        const updated = await prisma.transaction.update({
-          where: {
-            id: pending.transactionId,
-          },
-          data: {
-            category,
-          },
-        });
+        const updated = await updateTransactionCategory(
+          pending.transactionId,
+          category
+        );
 
         waitingForEditInput.delete(telegramUserId);
 
@@ -331,14 +294,7 @@ Danh mục mới: ${updated.category}`,
       return next();
     }
 
-    const record = await prisma.transaction.findFirst({
-      where: {
-        userId,
-        id: {
-          startsWith: text,
-        },
-      },
-    });
+    const record = await getTransactionByShortId(userId, text);
 
     if (!record) {
       await ctx.reply("Không tìm thấy giao dịch này. Bạn kiểm tra lại mã nhé.");

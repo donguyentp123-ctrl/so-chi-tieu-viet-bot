@@ -1,5 +1,5 @@
 import { Telegraf } from "telegraf";
-import { prisma } from "../database/prisma";
+import { createUserTransaction } from "../services/transaction.service";import { upsertTelegramUser } from "../repositories/user.repository";
 import { formatMoney, parseAmount } from "../utils/money";
 import { detectCategory } from "../utils/category";
 import { expenseCategoryKeyboard } from "../keyboards/category.keyboard";
@@ -73,28 +73,19 @@ Bạn nhập theo mẫu:
       const pending = waitingForExpenseCategory.get(ctx.from.id)!;
       const userId = String(ctx.from.id);
 
-      await prisma.user.upsert({
-        where: { id: userId },
-        update: {
-          firstName: ctx.from.first_name,
-          username: ctx.from.username,
-        },
-        create: {
-          id: userId,
-          firstName: ctx.from.first_name,
-          username: ctx.from.username,
-        },
-      });
+      await upsertTelegramUser({
+        id: userId,
+        firstName: ctx.from.first_name,
+        username: ctx.from.username,
+        });
 
-      const record = await prisma.transaction.create({
-        data: {
-          userId,
-          type: "EXPENSE",
-          amount: pending.amount,
-          category: selectedCategory,
-          note: pending.note,
-        },
-      });
+      const record = await createUserTransaction({
+        userId,
+        type: "EXPENSE",
+        amount: pending.amount,
+        category: selectedCategory,
+        note: pending.note,
+        });
 
       waitingForExpenseCategory.delete(ctx.from.id);
 
