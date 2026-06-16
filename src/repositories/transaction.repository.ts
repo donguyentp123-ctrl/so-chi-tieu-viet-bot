@@ -7,6 +7,7 @@ export async function createTransaction(data: {
   amount: number;
   category: string;
   note?: string;
+  createdAt?: Date;
 }) {
   return prisma.transaction.create({
     data,

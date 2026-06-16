@@ -13,6 +13,7 @@ export async function createUserTransaction(data: {
   amount: number;
   category: string;
   note?: string;
+  createdAt?: Date;
 }) {
   return createTransaction(data);
 }
