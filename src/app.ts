@@ -1,13 +1,14 @@
-require("dotenv").config();
+import "dotenv/config";
+import { Telegraf, Markup } from "telegraf";
 
-const { Telegraf, Markup } = require("telegraf");
+const token = process.env.BOT_TOKEN;
 
-if (!process.env.BOT_TOKEN) {
+if (!token) {
   console.error("Thiếu BOT_TOKEN trong file .env");
   process.exit(1);
 }
 
-const bot = new Telegraf(process.env.BOT_TOKEN);
+const bot = new Telegraf(token);
 
 function menuChinh() {
   return Markup.keyboard([
@@ -53,8 +54,6 @@ bot.hears("⚙️ Cài đặt", (ctx) => {
 bot.hears("❓ Trợ giúp", (ctx) => {
   ctx.reply(
     `📌 HƯỚNG DẪN
-
-Hiện tại bot đang ở bước khởi tạo.
 
 Các chức năng sẽ làm tiếp:
 ➕ Ghi khoản chi
