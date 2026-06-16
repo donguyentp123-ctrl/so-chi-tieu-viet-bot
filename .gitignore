@@ -17,3 +17,4 @@ build/
 
 # File của VS Code (không bắt buộc)
 .vscode/
+/src/generated/prisma
