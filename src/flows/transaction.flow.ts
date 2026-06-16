@@ -1,5 +1,5 @@
 import { TransactionType } from "@prisma/client";
-import { Telegraf } from "telegraf";
+import { Telegraf, Markup } from "telegraf";
 import {
   expenseCategoryKeyboard,
   incomeCategoryKeyboard,
@@ -7,6 +7,7 @@ import {
 import { cancelKeyboard, mainKeyboard } from "../keyboards/main.keyboard";
 import { upsertTelegramUser } from "../repositories/user.repository";
 import { createUserTransaction } from "../services/transaction.service";
+import { listWallets } from "../services/wallet.service";
 import {
   clearConversation,
   getConversation,
@@ -57,6 +58,17 @@ function getTransactionLabel(type: TransactionType) {
   return type === TransactionType.EXPENSE ? "KHOẢN CHI" : "KHOẢN THU";
 }
 
+function walletKeyboard(wallets: { id: string; name: string; balance: number }[]) {
+  const buttons = wallets.map((wallet) =>
+    Markup.button.callback(
+      `${wallet.name} (${formatMoney(wallet.balance)})`,
+      `select_wallet:${wallet.id}`
+    )
+  );
+
+  return Markup.inlineKeyboard(buttons, { columns: 1 });
+}
+
 export async function startAddTransactionFlow(
   ctx: any,
   type: TransactionType
@@ -82,6 +94,71 @@ Bạn nhập theo mẫu:
 }
 
 export function registerTransactionFlowHandlers(bot: Telegraf) {
+  bot.action(/^select_wallet:(.+)/, async (ctx) => {
+    const walletId = ctx.match[1];
+    const telegramUserId = ctx.from.id;
+    const userId = String(telegramUserId);
+
+    const state = getConversation(telegramUserId);
+
+    if (
+      !state ||
+      (state.action !== "ADD_EXPENSE" && state.action !== "ADD_INCOME") ||
+      state.step !== "SELECT_WALLET"
+    ) {
+      await ctx.answerCbQuery("Không có giao dịch đang chờ chọn ví.");
+      return;
+    }
+
+    const type = getTypeFromAction(state.action);
+
+    if (!type) {
+      clearConversation(telegramUserId);
+      await ctx.answerCbQuery("Dữ liệu không hợp lệ.");
+      return;
+    }
+
+    const amount = Number(state.data?.amount);
+    const note = String(state.data?.note || "");
+    const category = String(state.data?.category || "");
+
+    if (!amount || !note || !category) {
+      clearConversation(telegramUserId);
+      await ctx.answerCbQuery("Dữ liệu bị thiếu.");
+      await ctx.reply("Bạn vui lòng thực hiện lại.", mainKeyboard());
+      return;
+    }
+
+    await upsertTelegramUser({
+      id: userId,
+      firstName: ctx.from.first_name,
+      username: ctx.from.username,
+    });
+
+    const record = await createUserTransaction({
+      userId,
+      walletId,
+      type,
+      amount,
+      category,
+      note,
+    });
+
+    clearConversation(telegramUserId);
+
+    await ctx.answerCbQuery("Đã lưu.");
+
+    await ctx.reply(
+      `✅ ĐÃ LƯU ${getTransactionLabel(type)}
+
+Mã: ${record.id.slice(0, 8)}
+Số tiền: ${formatMoney(amount)}
+Danh mục: ${category}
+Ghi chú: ${note}`,
+      mainKeyboard()
+    );
+  });
+
   bot.on("text", async (ctx, next) => {
     const text = ctx.message.text.trim();
     const telegramUserId = ctx.from.id;
@@ -172,32 +249,29 @@ Bạn chọn danh mục để lưu nhé:`,
         return;
       }
 
-      await upsertTelegramUser({
-        id: userId,
-        firstName: ctx.from.first_name,
-        username: ctx.from.username,
+      const wallets = await listWallets(userId);
+
+      setConversation(telegramUserId, {
+        action: state.action,
+        step: "SELECT_WALLET",
+        data: {
+          amount,
+          note,
+          category: selectedCategory,
+        },
       });
 
-      const record = await createUserTransaction({
-        userId,
-        type,
-        amount,
-        category: selectedCategory,
-        note,
-      });
+      if (wallets.length === 0) {
+        await ctx.reply(
+          `Bạn chưa có ví nào.
 
-      clearConversation(telegramUserId);
+Vui lòng vào 💳 Quản lý ví để thêm ví trước khi lưu giao dịch.`,
+          mainKeyboard()
+        );
+        return;
+      }
 
-      await ctx.reply(
-        `✅ ĐÃ LƯU ${getTransactionLabel(type)}
-
-Mã: ${record.id.slice(0, 8)}
-Số tiền: ${formatMoney(amount)}
-Danh mục: ${selectedCategory}
-Ghi chú: ${note}`,
-        mainKeyboard()
-      );
-
+      await ctx.reply("Bạn chọn ví cho giao dịch này:", walletKeyboard(wallets));
       return;
     }
 

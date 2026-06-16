@@ -3,6 +3,7 @@ import { Telegraf, Markup } from "telegraf";
 import { createUserTransaction } from "../services/transaction.service";
 import { parseTransactionMessage } from "../services/parser.service";
 import { upsertTelegramUser } from "../repositories/user.repository";
+import { listWallets } from "../services/wallet.service";
 import { formatMoney, parseAmount } from "../utils/money";
 import { isMainMenuText } from "../utils/menu";
 import { cancelKeyboard } from "../keyboards/main.keyboard";
@@ -13,6 +14,8 @@ type PendingQuickAdd = {
   category: string;
   note: string;
   createdAt: Date;
+  walletId?: string;
+  walletName?: string;
   editingField?: "amount" | "note" | "date";
 };
 
@@ -54,16 +57,17 @@ function quickAddConfirmKeyboard() {
   return Markup.inlineKeyboard([
     [
       Markup.button.callback("✅ Lưu", "quick_add_confirm"),
+      Markup.button.callback("💳 Chọn ví", "quick_add_choose_wallet"),
+    ],
+    [
       Markup.button.callback("💰 Sửa tiền", "quick_add_edit_amount"),
-    ],
-    [
       Markup.button.callback("🏷 Đổi danh mục", "quick_add_change_category"),
-      Markup.button.callback("📝 Sửa ghi chú", "quick_add_edit_note"),
     ],
     [
+      Markup.button.callback("📝 Sửa ghi chú", "quick_add_edit_note"),
       Markup.button.callback("🗓 Sửa thời gian", "quick_add_edit_date"),
-      Markup.button.callback("❌ Hủy", "quick_add_cancel"),
     ],
+    [Markup.button.callback("❌ Hủy", "quick_add_cancel")],
   ]);
 }
 
@@ -78,6 +82,19 @@ function quickAddCategoryKeyboard(type: TransactionType) {
   return Markup.inlineKeyboard(buttons, { columns: 2 });
 }
 
+function quickAddWalletKeyboard(
+  wallets: { id: string; name: string; balance: number }[]
+) {
+  const buttons = wallets.map((wallet) =>
+    Markup.button.callback(
+      `${wallet.name} (${formatMoney(wallet.balance)})`,
+      `quick_wallet:${wallet.id}`
+    )
+  );
+
+  return Markup.inlineKeyboard(buttons, { columns: 1 });
+}
+
 async function sendQuickAddPreview(ctx: any, data: PendingQuickAdd) {
   await ctx.reply(
     `🤖 Mình hiểu như sau:
@@ -85,6 +102,7 @@ async function sendQuickAddPreview(ctx: any, data: PendingQuickAdd) {
 Loại: ${getTypeText(data.type)}
 Số tiền: ${formatMoney(data.amount)}
 Danh mục: ${data.category}
+Ví: ${data.walletName || "Chưa chọn"}
 Ghi chú: ${data.note}
 Thời gian: ${data.createdAt.toLocaleString("vi-VN")}
 
@@ -124,11 +142,65 @@ function parseManualDate(text: string) {
 }
 
 export function registerQuickAddCommand(bot: Telegraf) {
+  bot.action("quick_add_choose_wallet", async (ctx) => {
+    const pending = pendingQuickAdd.get(ctx.from.id);
+
+    if (!pending) {
+      await ctx.answerCbQuery("Không có giao dịch chờ sửa.");
+      return;
+    }
+
+    const wallets = await listWallets(String(ctx.from.id));
+
+    if (wallets.length === 0) {
+      await ctx.answerCbQuery();
+      await ctx.reply("Bạn chưa có ví nào. Vào 💳 Quản lý ví để thêm ví trước.");
+      return;
+    }
+
+    await ctx.answerCbQuery();
+    await ctx.reply(
+      "Bạn chọn ví cho giao dịch này:",
+      quickAddWalletKeyboard(wallets)
+    );
+  });
+
+  bot.action(/^quick_wallet:(.+)/, async (ctx) => {
+    const walletId = ctx.match[1];
+    const pending = pendingQuickAdd.get(ctx.from.id);
+
+    if (!pending) {
+      await ctx.answerCbQuery("Không có giao dịch chờ sửa.");
+      return;
+    }
+
+    const wallets = await listWallets(String(ctx.from.id));
+    const wallet = wallets.find((item) => item.id === walletId);
+
+    if (!wallet) {
+      await ctx.answerCbQuery("Không tìm thấy ví.");
+      return;
+    }
+
+    pending.walletId = wallet.id;
+    pending.walletName = wallet.name;
+    pendingQuickAdd.set(ctx.from.id, pending);
+
+    await ctx.answerCbQuery("Đã chọn ví.");
+    await sendQuickAddPreview(ctx, pending);
+  });
+
   bot.action("quick_add_confirm", async (ctx) => {
     const pending = pendingQuickAdd.get(ctx.from.id);
 
     if (!pending) {
       await ctx.answerCbQuery("Không có giao dịch chờ lưu.");
+      return;
+    }
+
+    if (!pending.walletId) {
+      await ctx.answerCbQuery();
+      await ctx.reply("Bạn cần chọn ví trước khi lưu giao dịch.");
       return;
     }
 
@@ -142,6 +214,7 @@ export function registerQuickAddCommand(bot: Telegraf) {
 
     const record = await createUserTransaction({
       userId,
+      walletId: pending.walletId,
       type: pending.type,
       amount: pending.amount,
       category: pending.category,
@@ -160,6 +233,7 @@ Mã: ${record.id.slice(0, 8)}
 Loại: ${getTypeText(record.type)}
 Số tiền: ${formatMoney(record.amount)}
 Danh mục: ${record.category}
+Ví: ${pending.walletName || "Không có"}
 Ghi chú: ${record.note || "Không có"}
 Thời gian: ${record.createdAt.toLocaleString("vi-VN")}`
     );

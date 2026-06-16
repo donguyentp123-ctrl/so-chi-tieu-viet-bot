@@ -5,9 +5,9 @@ export function mainKeyboard() {
     ["➕ Thêm khoản chi", "💰 Thêm khoản thu"],
     ["📊 Thống kê", "📋 Danh sách"],
     ["🔎 Tìm kiếm", "🧭 Bộ lọc"],
-    ["🔍 Xem chi tiết", "✏️ Sửa giao dịch"],
-    ["🗑 Xóa giao dịch", "⚙️ Cài đặt"],
-    ["❓ Trợ giúp"],
+    ["💳 Quản lý ví", "🔍 Xem chi tiết"],
+    ["✏️ Sửa giao dịch", "🗑 Xóa giao dịch"],
+    ["⚙️ Cài đặt", "❓ Trợ giúp"],
   ]).resize();
 }
 

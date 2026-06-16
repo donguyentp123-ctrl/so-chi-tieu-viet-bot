@@ -1,4 +1,5 @@
 import { TransactionType } from "@prisma/client";
+import { updateWalletBalance } from "../repositories/wallet.repository";
 import {
   createTransaction,
   findTransactionById,
@@ -9,13 +10,23 @@ import {
 
 export async function createUserTransaction(data: {
   userId: string;
+  walletId?: string;
   type: TransactionType;
   amount: number;
   category: string;
   note?: string;
   createdAt?: Date;
 }) {
-  return createTransaction(data);
+  const transaction = await createTransaction(data);
+
+  if (data.walletId) {
+    const balanceChange =
+      data.type === TransactionType.INCOME ? data.amount : -data.amount;
+
+    await updateWalletBalance(data.walletId, balanceChange);
+  }
+
+  return transaction;
 }
 
 export async function getTransactionByShortId(userId: string, shortId: string) {

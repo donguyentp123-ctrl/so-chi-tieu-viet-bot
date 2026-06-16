@@ -9,6 +9,7 @@ export type ConversationAction =
 export type ConversationStep =
   | "INPUT_AMOUNT_NOTE"
   | "SELECT_CATEGORY"
+  | "SELECT_WALLET"
   | "INPUT_ID"
   | "INPUT_AMOUNT"
   | "INPUT_NOTE"

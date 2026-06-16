@@ -17,12 +17,26 @@ model User {
   firstName String?
   username  String?
   createdAt DateTime      @default(now())
+
   records   Transaction[]
+  wallets   Wallet[]
+}
+
+model Wallet {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  balance   Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+  transactions Transaction[]
 }
 
 model Transaction {
   id        String          @id @default(uuid())
   userId    String
+  walletId  String?
   type      TransactionType
   amount    Int
   category  String
@@ -30,4 +44,5 @@ model Transaction {
   createdAt DateTime        @default(now())
 
   user      User            @relation(fields: [userId], references: [id])
+  wallet    Wallet?         @relation(fields: [walletId], references: [id])
 }

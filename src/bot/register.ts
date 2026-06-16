@@ -1,7 +1,7 @@
 import { Telegraf } from "telegraf";
 
 import { registerTransactionFlowHandlers } from "../flows/transaction.flow";
-import { registerSettingsCommand } from "../commands/settings";
+
 import { registerStartCommand } from "../commands/start";
 import { registerHelpCommand } from "../commands/help";
 import { registerExpenseCommand } from "../commands/expense";
@@ -14,6 +14,8 @@ import { registerDeleteCommand } from "../commands/delete";
 import { registerSearchCommand } from "../commands/search";
 import { registerFilterCommand } from "../commands/filter";
 import { registerQuickAddCommand } from "../commands/quick-add";
+import { registerSettingsCommand } from "../commands/settings";
+import { registerWalletCommand } from "../commands/wallet";
 
 export function registerBotHandlers(bot: Telegraf) {
   registerStartCommand(bot);
@@ -31,8 +33,8 @@ export function registerBotHandlers(bot: Telegraf) {
   registerSearchCommand(bot);
   registerFilterCommand(bot);
 
+  registerWalletCommand(bot);
   registerQuickAddCommand(bot);
-
   registerSettingsCommand(bot);
 
   bot.on("text", async (ctx) => {

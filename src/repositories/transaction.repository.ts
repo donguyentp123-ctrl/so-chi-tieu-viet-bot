@@ -3,6 +3,7 @@ import { prisma } from "../database/prisma";
 
 export async function createTransaction(data: {
   userId: string;
+  walletId?: string;
   type: TransactionType;
   amount: number;
   category: string;
