@@ -4,6 +4,8 @@ import { formatMoney, parseAmount } from "../utils/money";
 import { detectCategory } from "../utils/category";
 import { expenseCategoryKeyboard } from "../keyboards/category.keyboard";
 import { cancelKeyboard, mainKeyboard } from "../keyboards/main.keyboard";
+import { isMainMenuText } from "../utils/menu";
+
 type PendingExpense = {
   amount: number;
   note: string;
@@ -42,6 +44,12 @@ Bạn nhập theo mẫu:
 
   bot.on("text", async (ctx, next) => {
     const text = ctx.message.text.trim();
+            if (isMainMenuText(text)) {
+      waitingForExpense.delete(ctx.from.id);
+      waitingForExpenseCategory.delete(ctx.from.id);
+      return next();
+    }
+
         if (text === "❌ Hủy thao tác") {
       waitingForExpense.delete(ctx.from.id);
       waitingForExpenseCategory.delete(ctx.from.id);

@@ -8,18 +8,21 @@ import { registerIncomeCommand } from "../commands/income";
 import { registerDeleteCommand } from "../commands/delete";
 import { registerDetailCommand } from "../commands/detail";
 import { registerEditCommand } from "../commands/edit";
+import { registerSearchCommand } from "../commands/search";
+import { registerFilterCommand } from "../commands/filter";
 
 export function registerBotHandlers(bot: Telegraf) {
-registerStartCommand(bot);
-registerHelpCommand(bot);
-registerExpenseCommand(bot);
-registerIncomeCommand(bot);
-registerListCommand(bot);
-registerStatisticsCommand(bot);
-registerDetailCommand(bot);
-registerEditCommand(bot);
-registerDeleteCommand(bot);
-
+    registerStartCommand(bot);
+    registerHelpCommand(bot);
+    registerExpenseCommand(bot);
+    registerIncomeCommand(bot);
+    registerListCommand(bot);
+    registerStatisticsCommand(bot);
+    registerDetailCommand(bot);
+    registerEditCommand(bot);
+    registerDeleteCommand(bot);
+    registerSearchCommand(bot);
+    registerFilterCommand(bot);
   bot.hears("➕ Thêm khoản chi", async (ctx) => {
     await ctx.reply("Bạn vừa chọn: ➕ Thêm khoản chi");
   });

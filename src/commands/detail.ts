@@ -2,6 +2,7 @@ import { Telegraf } from "telegraf";
 import { prisma } from "../database/prisma";
 import { formatMoney } from "../utils/money";
 import { cancelKeyboard, mainKeyboard } from "../keyboards/main.keyboard";
+import { isMainMenuText } from "../utils/menu";
 
 const waitingForDetailId = new Set<number>();
 
@@ -63,7 +64,10 @@ Thời gian: ${record.createdAt.toLocaleString("vi-VN")}`
     }
 
     const inputId = ctx.message.text.trim();
-
+        if (isMainMenuText(inputId)) {
+      waitingForDetailId.delete(ctx.from.id);
+      return next();
+    }
     if (inputId === "❌ Hủy thao tác") {
       waitingForDetailId.delete(ctx.from.id);
       await ctx.reply("Đã hủy thao tác.", mainKeyboard());

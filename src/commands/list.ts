@@ -2,47 +2,90 @@ import { Telegraf, Markup } from "telegraf";
 import { prisma } from "../database/prisma";
 import { formatMoney } from "../utils/money";
 
-export function registerListCommand(bot: Telegraf) {
-  bot.hears("📋 Danh sách", async (ctx) => {
-    const userId = String(ctx.from.id);
+const PAGE_SIZE = 5;
 
-    const records = await prisma.transaction.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-    });
+async function sendTransactionList(ctx: any, page: number) {
+  const userId = String(ctx.from.id);
+  const skip = (page - 1) * PAGE_SIZE;
 
-    if (records.length === 0) {
-      await ctx.reply("Bạn chưa có giao dịch nào.");
-      return;
-    }
+  const total = await prisma.transaction.count({
+    where: { userId },
+  });
 
-    const text = records
-      .map((record, index) => {
-        const typeIcon = record.type === "EXPENSE" ? "➖" : "➕";
-        const note = record.note || "Không có";
-        const shortNote = note.length > 20 ? note.slice(0, 20) + "..." : note;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-        return `${index + 1}. ${typeIcon} ${formatMoney(record.amount)} | ${
-          record.category
-        } | ${shortNote}`;
-      })
-      .join("\n");
+  if (page < 1) page = 1;
+  if (page > totalPages) page = totalPages;
 
-    const buttons = records.map((record, index) =>
-      Markup.button.callback(String(index + 1), `tx_menu:${record.id}`)
-    );
+  const records = await prisma.transaction.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+  });
 
-    await ctx.reply(
-      `📋 10 GIAO DỊCH GẦN NHẤT
+  if (records.length === 0) {
+    await ctx.reply("Bạn chưa có giao dịch nào.");
+    return;
+  }
+
+  const text = records
+    .map((record, index) => {
+      const number = skip + index + 1;
+      const typeIcon = record.type === "EXPENSE" ? "➖" : "➕";
+      const note = record.note || "Không có";
+      const shortNote = note.length > 20 ? note.slice(0, 20) + "..." : note;
+
+      return `${number}. ${typeIcon} ${formatMoney(record.amount)} | ${
+        record.category
+      } | ${shortNote}`;
+    })
+    .join("\n");
+
+  const transactionButtons = records.map((record, index) =>
+    Markup.button.callback(String(skip + index + 1), `tx_menu:${record.id}`)
+  );
+
+  const pageButtons = [];
+
+  if (page > 1) {
+    pageButtons.push(Markup.button.callback("⬅️ Trang trước", `tx_page:${page - 1}`));
+  }
+
+  if (page < totalPages) {
+    pageButtons.push(Markup.button.callback("Trang sau ➡️", `tx_page:${page + 1}`));
+  }
+
+  const keyboardRows = [];
+
+  keyboardRows.push(transactionButtons);
+
+  if (pageButtons.length > 0) {
+    keyboardRows.push(pageButtons);
+  }
+
+  await ctx.reply(
+    `📋 DANH SÁCH GIAO DỊCH
+
+Trang ${page}/${totalPages}
 
 ${text}
 
 Bấm số bên dưới để xem/sửa/xóa giao dịch:`,
-      Markup.inlineKeyboard(buttons, {
-        columns: 5,
-      })
-    );
+    Markup.inlineKeyboard(keyboardRows)
+  );
+}
+
+export function registerListCommand(bot: Telegraf) {
+  bot.hears("📋 Danh sách", async (ctx) => {
+    await sendTransactionList(ctx, 1);
+  });
+
+  bot.action(/^tx_page:(\d+)/, async (ctx) => {
+    const page = Number(ctx.match[1]);
+
+    await ctx.answerCbQuery();
+    await sendTransactionList(ctx, page);
   });
 
   bot.action(/^tx_menu:(.+)/, async (ctx) => {

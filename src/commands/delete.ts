@@ -1,7 +1,10 @@
-import { Telegraf } from "telegraf";
+import { Telegraf, Markup } from "telegraf";
 import { prisma } from "../database/prisma";
 import { formatMoney } from "../utils/money";
 import { cancelKeyboard, mainKeyboard } from "../keyboards/main.keyboard";
+import { isMainMenuText } from "../utils/menu";
+
+
 const waitingForDeleteId = new Set<number>();
 
 export function registerDeleteCommand(bot: Telegraf) {
@@ -13,13 +16,12 @@ export function registerDeleteCommand(bot: Telegraf) {
 
 Bạn nhập mã giao dịch cần xóa.
 
-Ví dụ:
-a1b2c3d4
-
-Bạn có thể bấm 📋 Danh sách để xem mã giao dịch.`
-    , cancelKeyboard());
+Bạn có thể bấm 📋 Danh sách để chọn giao dịch nhanh hơn.`,
+      cancelKeyboard()
+    );
   });
-    bot.action(/^delete:(.+)/, async (ctx) => {
+
+  bot.action(/^delete:(.+)/, async (ctx) => {
     const shortId = ctx.match[1];
     const userId = String(ctx.from.id);
 
@@ -37,35 +39,81 @@ Bạn có thể bấm 📋 Danh sách để xem mã giao dịch.`
       return;
     }
 
+    await ctx.answerCbQuery();
+
+    await ctx.reply(
+      `⚠️ XÁC NHẬN XÓA
+
+Bạn có chắc muốn xóa giao dịch này không?
+
+Mã: ${record.id.slice(0, 8)}
+Số tiền: ${formatMoney(record.amount)}
+Danh mục: ${record.category}
+Ghi chú: ${record.note || "Không có"}`,
+      Markup.inlineKeyboard([
+        [
+          Markup.button.callback("✅ Đồng ý xóa", `delete_confirm:${record.id}`),
+          Markup.button.callback("❌ Hủy", "delete_cancel"),
+        ],
+      ])
+    );
+  });
+
+  bot.action(/^delete_confirm:(.+)/, async (ctx) => {
+    const id = ctx.match[1];
+    const userId = String(ctx.from.id);
+
+    const record = await prisma.transaction.findFirst({
+      where: {
+        id,
+        userId,
+      },
+    });
+
+    if (!record) {
+      await ctx.answerCbQuery("Không tìm thấy giao dịch.");
+      return;
+    }
+
     await prisma.transaction.delete({
       where: {
         id: record.id,
       },
     });
 
-    await ctx.answerCbQuery("Đã xóa giao dịch.");
+    await ctx.answerCbQuery("Đã xóa.");
 
     await ctx.reply(
       `✅ ĐÃ XÓA GIAO DỊCH
 
 Số tiền: ${formatMoney(record.amount)}
 Danh mục: ${record.category}
-Ghi chú: ${record.note || "Không có"}`
+Ghi chú: ${record.note || "Không có"}`,
+      mainKeyboard()
     );
   });
-  
+
+  bot.action("delete_cancel", async (ctx) => {
+    await ctx.answerCbQuery("Đã hủy.");
+    await ctx.reply("Đã hủy xóa giao dịch.", mainKeyboard());
+  });
+
   bot.on("text", async (ctx, next) => {
     if (!waitingForDeleteId.has(ctx.from.id)) {
       return next();
     }
 
     const inputId = ctx.message.text.trim();
-        if (inputId === "❌ Hủy thao tác") {
+        if (isMainMenuText(inputId)) {
       waitingForDeleteId.delete(ctx.from.id);
-
+      return next();
+    }
+    if (inputId === "❌ Hủy thao tác") {
+      waitingForDeleteId.delete(ctx.from.id);
       await ctx.reply("Đã hủy thao tác.", mainKeyboard());
       return;
     }
+
     const userId = String(ctx.from.id);
 
     const record = await prisma.transaction.findFirst({
@@ -82,20 +130,23 @@ Ghi chú: ${record.note || "Không có"}`
       return;
     }
 
-    await prisma.transaction.delete({
-      where: {
-        id: record.id,
-      },
-    });
-
     waitingForDeleteId.delete(ctx.from.id);
 
     await ctx.reply(
-      `✅ ĐÃ XÓA GIAO DỊCH
+      `⚠️ XÁC NHẬN XÓA
 
+Bạn có chắc muốn xóa giao dịch này không?
+
+Mã: ${record.id.slice(0, 8)}
 Số tiền: ${formatMoney(record.amount)}
 Danh mục: ${record.category}
-Ghi chú: ${record.note || "Không có"}`
+Ghi chú: ${record.note || "Không có"}`,
+      Markup.inlineKeyboard([
+        [
+          Markup.button.callback("✅ Đồng ý xóa", `delete_confirm:${record.id}`),
+          Markup.button.callback("❌ Hủy", "delete_cancel"),
+        ],
+      ])
     );
   });
 }

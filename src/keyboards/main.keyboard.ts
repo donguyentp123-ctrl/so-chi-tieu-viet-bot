@@ -4,8 +4,10 @@ export function mainKeyboard() {
   return Markup.keyboard([
     ["➕ Thêm khoản chi", "💰 Thêm khoản thu"],
     ["📊 Thống kê", "📋 Danh sách"],
-    ["🔍 Xem chi tiết", "🗑 Xóa giao dịch"],
-    ["⚙️ Cài đặt", "❓ Trợ giúp"],
+    ["🔎 Tìm kiếm", "🧭 Bộ lọc"],
+    ["🔍 Xem chi tiết", "✏️ Sửa giao dịch"],
+    ["🗑 Xóa giao dịch", "⚙️ Cài đặt"],
+    ["❓ Trợ giúp"],
   ]).resize();
 }
 
