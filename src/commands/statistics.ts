@@ -15,6 +15,18 @@ function getStartOfMonth() {
   return date;
 }
 
+function formatPercent(value: number, total: number) {
+  if (total <= 0) return "0%";
+  return ((value / total) * 100).toFixed(1) + "%";
+}
+
+function formatShortDate(date: Date) {
+  return date.toLocaleDateString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+  });
+}
+
 export function registerStatisticsCommand(bot: Telegraf) {
   bot.hears("📊 Thống kê", async (ctx) => {
     const userId = String(ctx.from.id);
@@ -90,21 +102,82 @@ export function registerStatisticsCommand(bot: Telegraf) {
       },
     });
 
+    const dailyStats = [];
+
+    for (let i = 6; i >= 0; i--) {
+      const start = getStartOfToday();
+      start.setDate(start.getDate() - i);
+
+      const end = new Date(start);
+      end.setDate(end.getDate() + 1);
+
+      const income = await prisma.transaction.aggregate({
+        where: {
+          userId,
+          type: "INCOME",
+          createdAt: {
+            gte: start,
+            lt: end,
+          },
+        },
+        _sum: {
+          amount: true,
+        },
+      });
+
+      const expense = await prisma.transaction.aggregate({
+        where: {
+          userId,
+          type: "EXPENSE",
+          createdAt: {
+            gte: start,
+            lt: end,
+          },
+        },
+        _sum: {
+          amount: true,
+        },
+      });
+
+      dailyStats.push({
+        date: start,
+        income: income._sum.amount || 0,
+        expense: expense._sum.amount || 0,
+      });
+    }
+
+    const last7DaysText = dailyStats
+      .map((item) => {
+        return `${formatShortDate(item.date)}: ➕ ${formatMoney(
+          item.income
+        )} | ➖ ${formatMoney(item.expense)}`;
+      })
+      .join("\n");
+
     const todayExpenseAmount = todayExpense._sum.amount || 0;
     const todayIncomeAmount = todayIncome._sum.amount || 0;
     const monthExpenseAmount = monthExpense._sum.amount || 0;
     const monthIncomeAmount = monthIncome._sum.amount || 0;
+    const monthBalance = monthIncomeAmount - monthExpenseAmount;
 
     const categoryText =
       expenseByCategory.length === 0
         ? "Chưa có khoản chi nào."
         : expenseByCategory
             .map((item, index) => {
+              const amount = item._sum.amount || 0;
+
               return `${index + 1}. ${item.category}: ${formatMoney(
-                item._sum.amount || 0
-              )}`;
+                amount
+              )} - ${formatPercent(amount, monthExpenseAmount)}`;
             })
             .join("\n");
+
+    const topCategory = expenseByCategory[0];
+
+    const topCategoryText = topCategory
+      ? `${topCategory.category} (${formatMoney(topCategory._sum.amount || 0)})`
+      : "Chưa có dữ liệu";
 
     await ctx.reply(
       `📊 THỐNG KÊ THU CHI
@@ -117,10 +190,16 @@ Hôm nay:
 Tháng này:
 ➕ Thu: ${formatMoney(monthIncomeAmount)}
 ➖ Chi: ${formatMoney(monthExpenseAmount)}
-💰 Còn lại: ${formatMoney(monthIncomeAmount - monthExpenseAmount)}
+💰 Còn lại: ${formatMoney(monthBalance)}
+
+Chi nhiều nhất:
+🏷 ${topCategoryText}
 
 Chi theo danh mục tháng này:
-${categoryText}`
+${categoryText}
+
+7 ngày gần nhất:
+${last7DaysText}`
     );
   });
 }

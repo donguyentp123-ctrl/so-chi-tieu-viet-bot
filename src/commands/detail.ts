@@ -2,24 +2,27 @@ import { Telegraf } from "telegraf";
 import { prisma } from "../database/prisma";
 import { formatMoney } from "../utils/money";
 import { cancelKeyboard, mainKeyboard } from "../keyboards/main.keyboard";
-const waitingForDeleteId = new Set<number>();
 
-export function registerDeleteCommand(bot: Telegraf) {
-  bot.hears("🗑 Xóa giao dịch", async (ctx) => {
-    waitingForDeleteId.add(ctx.from.id);
+const waitingForDetailId = new Set<number>();
+
+export function registerDetailCommand(bot: Telegraf) {
+  bot.hears("🔍 Xem chi tiết", async (ctx) => {
+    waitingForDetailId.add(ctx.from.id);
 
     await ctx.reply(
-      `🗑 XÓA GIAO DỊCH
+      `🔍 XEM CHI TIẾT GIAO DỊCH
 
-Bạn nhập mã giao dịch cần xóa.
+Bạn nhập mã giao dịch cần xem.
 
 Ví dụ:
 a1b2c3d4
 
-Bạn có thể bấm 📋 Danh sách để xem mã giao dịch.`
-    , cancelKeyboard());
+Bạn có thể bấm 📋 Danh sách để xem mã giao dịch.`,
+      cancelKeyboard()
+    );
   });
-    bot.action(/^delete:(.+)/, async (ctx) => {
+
+    bot.action(/^detail:(.+)/, async (ctx) => {
     const shortId = ctx.match[1];
     const userId = String(ctx.from.id);
 
@@ -37,35 +40,36 @@ Bạn có thể bấm 📋 Danh sách để xem mã giao dịch.`
       return;
     }
 
-    await prisma.transaction.delete({
-      where: {
-        id: record.id,
-      },
-    });
+    await ctx.answerCbQuery();
 
-    await ctx.answerCbQuery("Đã xóa giao dịch.");
+    const typeText = record.type === "EXPENSE" ? "Khoản chi" : "Khoản thu";
+    const typeIcon = record.type === "EXPENSE" ? "➖" : "➕";
 
     await ctx.reply(
-      `✅ ĐÃ XÓA GIAO DỊCH
+      `🔍 CHI TIẾT GIAO DỊCH
 
+Mã: ${record.id.slice(0, 8)}
+Loại: ${typeIcon} ${typeText}
 Số tiền: ${formatMoney(record.amount)}
 Danh mục: ${record.category}
-Ghi chú: ${record.note || "Không có"}`
+Ghi chú: ${record.note || "Không có"}
+Thời gian: ${record.createdAt.toLocaleString("vi-VN")}`
     );
   });
   
   bot.on("text", async (ctx, next) => {
-    if (!waitingForDeleteId.has(ctx.from.id)) {
+    if (!waitingForDetailId.has(ctx.from.id)) {
       return next();
     }
 
     const inputId = ctx.message.text.trim();
-        if (inputId === "❌ Hủy thao tác") {
-      waitingForDeleteId.delete(ctx.from.id);
 
+    if (inputId === "❌ Hủy thao tác") {
+      waitingForDetailId.delete(ctx.from.id);
       await ctx.reply("Đã hủy thao tác.", mainKeyboard());
       return;
     }
+
     const userId = String(ctx.from.id);
 
     const record = await prisma.transaction.findFirst({
@@ -82,20 +86,21 @@ Ghi chú: ${record.note || "Không có"}`
       return;
     }
 
-    await prisma.transaction.delete({
-      where: {
-        id: record.id,
-      },
-    });
+    waitingForDetailId.delete(ctx.from.id);
 
-    waitingForDeleteId.delete(ctx.from.id);
+    const typeText = record.type === "EXPENSE" ? "Khoản chi" : "Khoản thu";
+    const typeIcon = record.type === "EXPENSE" ? "➖" : "➕";
 
     await ctx.reply(
-      `✅ ĐÃ XÓA GIAO DỊCH
+      `🔍 CHI TIẾT GIAO DỊCH
 
+Mã: ${record.id.slice(0, 8)}
+Loại: ${typeIcon} ${typeText}
 Số tiền: ${formatMoney(record.amount)}
 Danh mục: ${record.category}
-Ghi chú: ${record.note || "Không có"}`
+Ghi chú: ${record.note || "Không có"}
+Thời gian: ${record.createdAt.toLocaleString("vi-VN")}`,
+      mainKeyboard()
     );
   });
 }

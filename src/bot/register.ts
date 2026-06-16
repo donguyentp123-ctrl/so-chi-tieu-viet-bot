@@ -6,15 +6,19 @@ import { registerListCommand } from "../commands/list";
 import { registerStatisticsCommand } from "../commands/statistics";
 import { registerIncomeCommand } from "../commands/income";
 import { registerDeleteCommand } from "../commands/delete";
+import { registerDetailCommand } from "../commands/detail";
+import { registerEditCommand } from "../commands/edit";
 
 export function registerBotHandlers(bot: Telegraf) {
-    registerStartCommand(bot);
-    registerHelpCommand(bot);
-    registerExpenseCommand(bot);
-    registerIncomeCommand(bot);
-    registerListCommand(bot);
-    registerStatisticsCommand(bot);
-    registerDeleteCommand(bot);
+registerStartCommand(bot);
+registerHelpCommand(bot);
+registerExpenseCommand(bot);
+registerIncomeCommand(bot);
+registerListCommand(bot);
+registerStatisticsCommand(bot);
+registerDetailCommand(bot);
+registerEditCommand(bot);
+registerDeleteCommand(bot);
 
   bot.hears("➕ Thêm khoản chi", async (ctx) => {
     await ctx.reply("Bạn vừa chọn: ➕ Thêm khoản chi");
