@@ -1,7 +1,7 @@
 import { Telegraf } from "telegraf";
 import { cancelKeyboard, mainKeyboard } from "../keyboards/main.keyboard";
 import { getTransactionByShortId } from "../services/transaction.service";
-import { formatMoney } from "../utils/money";
+import { formatTransactionDetail } from "../utils/transaction-message";
 import { isMainMenuText } from "../utils/menu";
 
 const waitingForDetailId = new Set<number>();
@@ -15,20 +15,7 @@ async function sendDetail(ctx: any, shortId: string) {
     return;
   }
 
-  const typeText = record.type === "EXPENSE" ? "Khoản chi" : "Khoản thu";
-  const typeIcon = record.type === "EXPENSE" ? "➖" : "➕";
-
-  await ctx.reply(
-    `🔍 CHI TIẾT GIAO DỊCH
-
-Mã: ${record.id.slice(0, 8)}
-Loại: ${typeIcon} ${typeText}
-Số tiền: ${formatMoney(record.amount)}
-Danh mục: ${record.category}
-Ghi chú: ${record.note || "Không có"}
-Thời gian: ${record.createdAt.toLocaleString("vi-VN")}`,
-    mainKeyboard()
-  );
+  await ctx.reply(formatTransactionDetail(record), mainKeyboard());
 }
 
 export function registerDetailCommand(bot: Telegraf) {

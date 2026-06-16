@@ -1,67 +1,59 @@
+import { Prisma } from "@prisma/client";
 import { Telegraf, Markup } from "telegraf";
-import { prisma } from "../database/prisma";
+import { getPagedTransactions } from "../services/transaction-query.service";
 import { cancelKeyboard, mainKeyboard } from "../keyboards/main.keyboard";
-import { formatMoney } from "../utils/money";
+import { formatTransactionListItem } from "../utils/transaction-message";
 import { isMainMenuText } from "../utils/menu";
 
-const PAGE_SIZE = 5;
 const waitingForSearchKeyword = new Set<number>();
 const userSearchKeyword = new Map<number, string>();
 
-async function sendSearchResults(ctx: any, keyword: string, page: number) {
-  const userId = String(ctx.from.id);
-
-  const where = {
-    userId,
+function getSearchWhere(keyword: string): Prisma.TransactionWhereInput {
+  return {
     OR: [
       {
         note: {
           contains: keyword,
-          mode: "insensitive" as const,
+          mode: "insensitive",
         },
       },
       {
         category: {
           contains: keyword,
-          mode: "insensitive" as const,
+          mode: "insensitive",
         },
       },
     ],
   };
+}
 
-  const total = await prisma.transaction.count({ where });
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+async function sendSearchResults(ctx: any, keyword: string, page: number) {
+  const userId = String(ctx.from.id);
 
-  if (page < 1) page = 1;
-  if (page > totalPages) page = totalPages;
-
-  const skip = (page - 1) * PAGE_SIZE;
-
-  const records = await prisma.transaction.findMany({
-    where,
-    orderBy: {
-      createdAt: "desc",
-    },
-    skip,
-    take: PAGE_SIZE,
+  const result = await getPagedTransactions({
+    userId,
+    page,
+    where: getSearchWhere(keyword),
   });
 
+  const { records, totalPages, skip } = result;
+  page = result.page;
+
   if (records.length === 0) {
-    await ctx.reply(`Không tìm thấy giao dịch nào với từ khóa: ${keyword}`, mainKeyboard());
+    await ctx.reply(
+      `Không tìm thấy giao dịch nào với từ khóa: ${keyword}`,
+      mainKeyboard()
+    );
     return;
   }
 
   const text = records
-    .map((record, index) => {
-      const number = skip + index + 1;
-      const typeIcon = record.type === "EXPENSE" ? "➖" : "➕";
-      const note = record.note || "Không có";
-      const shortNote = note.length > 22 ? note.slice(0, 22) + "..." : note;
-
-      return `${number}. ${typeIcon} ${formatMoney(record.amount)} | ${
-        record.category
-      } | ${shortNote}`;
-    })
+    .map((record, index) =>
+      formatTransactionListItem({
+        record,
+        number: skip + index + 1,
+      })
+    )
     .join("\n");
 
   const transactionButtons = records.map((record, index) =>
@@ -71,11 +63,15 @@ async function sendSearchResults(ctx: any, keyword: string, page: number) {
   const pageButtons = [];
 
   if (page > 1) {
-    pageButtons.push(Markup.button.callback("⬅️ Trang trước", `search_page:${page - 1}`));
+    pageButtons.push(
+      Markup.button.callback("⬅️ Trang trước", `search_page:${page - 1}`)
+    );
   }
 
   if (page < totalPages) {
-    pageButtons.push(Markup.button.callback("Trang sau ➡️", `search_page:${page + 1}`));
+    pageButtons.push(
+      Markup.button.callback("Trang sau ➡️", `search_page:${page + 1}`)
+    );
   }
 
   const keyboardRows = [transactionButtons];
@@ -130,12 +126,14 @@ cafe`,
 
   bot.on("text", async (ctx, next) => {
     const text = ctx.message.text.trim();
-        if (isMainMenuText(text)) {
-      waitingForSearchKeyword.delete(ctx.from.id);
-      userSearchKeyword.delete(ctx.from.id);
+
+    if (!waitingForSearchKeyword.has(ctx.from.id)) {
       return next();
     }
-    if (!waitingForSearchKeyword.has(ctx.from.id)) {
+
+    if (isMainMenuText(text)) {
+      waitingForSearchKeyword.delete(ctx.from.id);
+      userSearchKeyword.delete(ctx.from.id);
       return next();
     }
 

@@ -1,9 +1,7 @@
-import { TransactionType } from "@prisma/client";
+import { Prisma, TransactionType } from "@prisma/client";
 import { Telegraf, Markup } from "telegraf";
-import { prisma } from "../database/prisma";
-import { formatMoney } from "../utils/money";
-
-const PAGE_SIZE = 5;
+import { getPagedTransactions } from "../services/transaction-query.service";
+import { formatTransactionListItem } from "../utils/transaction-message";
 
 function getStartOfToday() {
   const date = new Date();
@@ -43,7 +41,10 @@ function filterKeyboard() {
   ]);
 }
 
-function getFilterConfig(filterType: string) {
+function getFilterConfig(filterType: string): {
+  title: string;
+  where: Prisma.TransactionWhereInput;
+} | null {
   if (filterType === "today") {
     return {
       title: "📅 GIAO DỊCH HÔM NAY",
@@ -90,37 +91,20 @@ function getFilterConfig(filterType: string) {
 async function sendFilteredList(
   ctx: any,
   title: string,
-  where: any,
+  where: Prisma.TransactionWhereInput,
   page: number,
   callbackPrefix: string
 ) {
   const userId = String(ctx.from.id);
 
-  const total = await prisma.transaction.count({
-    where: {
-      userId,
-      ...where,
-    },
+  const result = await getPagedTransactions({
+    userId,
+    page,
+    where,
   });
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-
-  if (page < 1) page = 1;
-  if (page > totalPages) page = totalPages;
-
-  const skip = (page - 1) * PAGE_SIZE;
-
-  const records = await prisma.transaction.findMany({
-    where: {
-      userId,
-      ...where,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    skip,
-    take: PAGE_SIZE,
-  });
+  const { records, totalPages, skip } = result;
+  page = result.page;
 
   if (records.length === 0) {
     await ctx.reply(`${title}\n\nKhông có giao dịch phù hợp.`);
@@ -128,16 +112,12 @@ async function sendFilteredList(
   }
 
   const text = records
-    .map((record, index) => {
-      const number = skip + index + 1;
-      const typeIcon = record.type === "EXPENSE" ? "➖" : "➕";
-      const note = record.note || "Không có";
-      const shortNote = note.length > 22 ? note.slice(0, 22) + "..." : note;
-
-      return `${number}. ${typeIcon} ${formatMoney(record.amount)} | ${
-        record.category
-      } | ${shortNote}`;
-    })
+    .map((record, index) =>
+      formatTransactionListItem({
+        record,
+        number: skip + index + 1,
+      })
+    )
     .join("\n");
 
   const transactionButtons = records.map((record, index) =>
@@ -178,7 +158,10 @@ Bấm số bên dưới để xem/sửa/xóa giao dịch:`,
 
 export function registerFilterCommand(bot: Telegraf) {
   bot.hears("🧭 Bộ lọc", async (ctx) => {
-    await ctx.reply("🧭 Bạn muốn lọc giao dịch theo tiêu chí nào?", filterKeyboard());
+    await ctx.reply(
+      "🧭 Bạn muốn lọc giao dịch theo tiêu chí nào?",
+      filterKeyboard()
+    );
   });
 
   bot.action(/^filter:(today|month|expense|income):(\d+)/, async (ctx) => {
