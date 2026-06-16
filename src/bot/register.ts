@@ -1,7 +1,7 @@
 import { Telegraf } from "telegraf";
 
 import { registerTransactionFlowHandlers } from "../flows/transaction.flow";
-
+import { registerSettingsCommand } from "../commands/settings";
 import { registerStartCommand } from "../commands/start";
 import { registerHelpCommand } from "../commands/help";
 import { registerExpenseCommand } from "../commands/expense";
@@ -33,9 +33,7 @@ export function registerBotHandlers(bot: Telegraf) {
 
   registerQuickAddCommand(bot);
 
-  bot.hears("⚙️ Cài đặt", async (ctx) => {
-    await ctx.reply("Bạn vừa chọn: ⚙️ Cài đặt");
-  });
+  registerSettingsCommand(bot);
 
   bot.on("text", async (ctx) => {
     await ctx.reply("Mình chưa hiểu nội dung này. Bạn bấm ❓ Trợ giúp nhé.");
