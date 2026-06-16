@@ -1,0 +1,14 @@
+{
+  "name": "so-chi-tieu-viet-bot",
+  "version": "1.0.0",
+  "description": "Bot Telegram quản lý chi tiêu thuần Việt",
+  "main": "src/bot.js",
+  "scripts": {
+    "dev": "node src/bot.js",
+    "start": "node src/bot.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.0",
+    "telegraf": "^4.16.0"
+  }
+}

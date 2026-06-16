@@ -1,0 +1,19 @@
+# Thư viện cài từ npm
+node_modules/
+
+# File chứa thông tin bí mật
+.env
+
+# File log
+*.log
+
+# File hệ điều hành
+.DS_Store
+Thumbs.db
+
+# Thư mục build (sau này sẽ có)
+dist/
+build/
+
+# File của VS Code (không bắt buộc)
+.vscode/
