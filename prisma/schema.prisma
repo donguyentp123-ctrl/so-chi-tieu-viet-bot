@@ -20,6 +20,7 @@ model User {
 
   records   Transaction[]
   wallets   Wallet[]
+  budgets   Budget[]
 }
 
 model Wallet {
@@ -45,4 +46,14 @@ model Transaction {
 
   user      User            @relation(fields: [userId], references: [id])
   wallet    Wallet?         @relation(fields: [walletId], references: [id])
+}
+
+model Budget {
+  id        String   @id @default(uuid())
+  userId    String
+  category  String
+  amount    Int
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
 }

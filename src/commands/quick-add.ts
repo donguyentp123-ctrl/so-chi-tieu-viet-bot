@@ -7,6 +7,7 @@ import { listWallets } from "../services/wallet.service";
 import { formatMoney, parseAmount } from "../utils/money";
 import { isMainMenuText } from "../utils/menu";
 import { cancelKeyboard } from "../keyboards/main.keyboard";
+import { checkBudgetAfterExpense } from "../services/budget-summary.service";
 
 type PendingQuickAdd = {
   type: TransactionType;
@@ -222,12 +223,20 @@ export function registerQuickAddCommand(bot: Telegraf) {
       createdAt: pending.createdAt,
     });
 
+    const budgetWarning =
+  pending.type === TransactionType.EXPENSE
+    ? await checkBudgetAfterExpense({
+        userId,
+        category: pending.category,
+      })
+    : null;
+
     pendingQuickAdd.delete(ctx.from.id);
 
     await ctx.answerCbQuery("Đã lưu.");
 
-    await ctx.reply(
-      `✅ ĐÃ LƯU NHANH
+ await ctx.reply(
+  `✅ ĐÃ LƯU NHANH
 
 Mã: ${record.id.slice(0, 8)}
 Loại: ${getTypeText(record.type)}
@@ -235,8 +244,8 @@ Số tiền: ${formatMoney(record.amount)}
 Danh mục: ${record.category}
 Ví: ${pending.walletName || "Không có"}
 Ghi chú: ${record.note || "Không có"}
-Thời gian: ${record.createdAt.toLocaleString("vi-VN")}`
-    );
+Thời gian: ${record.createdAt.toLocaleString("vi-VN")}${budgetWarning || ""}`
+);
   });
 
   bot.action("quick_add_edit_amount", async (ctx) => {

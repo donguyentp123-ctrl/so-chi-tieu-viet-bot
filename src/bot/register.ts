@@ -16,6 +16,7 @@ import { registerFilterCommand } from "../commands/filter";
 import { registerQuickAddCommand } from "../commands/quick-add";
 import { registerSettingsCommand } from "../commands/settings";
 import { registerWalletCommand } from "../commands/wallet";
+import { registerBudgetCommand } from "../commands/budget";
 
 export function registerBotHandlers(bot: Telegraf) {
   registerStartCommand(bot);
@@ -34,6 +35,7 @@ export function registerBotHandlers(bot: Telegraf) {
   registerFilterCommand(bot);
 
   registerWalletCommand(bot);
+  registerBudgetCommand(bot);
   registerQuickAddCommand(bot);
   registerSettingsCommand(bot);
 
